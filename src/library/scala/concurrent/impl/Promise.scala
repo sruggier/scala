@@ -26,7 +26,10 @@ private[concurrent] trait Promise[T] extends scala.concurrent.Promise[T] with sc
 
   override def transform[S](f: Try[T] => Try[S])(implicit executor: ExecutionContext): Future[S] = {
     val p = new DefaultPromise[S]()
-    onComplete { result => p.complete(try f(result) catch { case NonFatal(t) => Failure(t) }) }
+    // Catch all throwables here, so they can be communicated back to the
+    // calling thread. Throwables that aren't handled are invisible to the
+    // caller, so it doesn't make sense to let any leak, even if they're fatal.
+    onComplete { result => p.complete(try f(result) catch { case t: Throwable => Failure(t) }) }
     p.future
   }
 
